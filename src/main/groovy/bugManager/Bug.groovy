@@ -28,7 +28,7 @@ class Bug {
         builder.directory(new File(fixedFolder))
         Process process = builder.start()
         process.waitFor()
-        def output = process.inputStream.readLines().eachLine { log.info it.toString() }
+        def output = process.inputStream.eachLine { log.info it.toString() }
         def failingTest = output.find{
             it =~ /Failing tests: [1-9]+[\d]*/
         }
