@@ -20,7 +20,6 @@ class BugManager {
     List<MutantsManager> mutantsManagerList
     List<SyntheticMerge> syntheticMerges
 
-    /* Principal construtor, pois pressupõe que tudo vai ser executado a partir da pasta do Defects4J */
     BugManager(){
         this(verifyCurrentFolder())
     }
@@ -135,8 +134,8 @@ class BugManager {
 
     private void checkoutFixedRevision(Bug bug){
         deleteFolder(bug.fixedFolder)
-        ProcessBuilder builder = new ProcessBuilder("defects4j", "checkout", "-p", project, "-v",
-                "${id}f", "-w", bug.fixedFolder)
+        ProcessBuilder builder = new ProcessBuilder("defects4j", "checkout", "-p", bug.project, "-v",
+                "${bug.id}f", "-w", bug.fixedFolder)
         builder.directory(new File(defects4jPath))
         Process process = builder.start()
         process.waitFor()
