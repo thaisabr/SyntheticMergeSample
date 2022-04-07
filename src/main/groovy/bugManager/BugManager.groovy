@@ -66,9 +66,10 @@ class BugManager {
         ProcessBuilder builder = new ProcessBuilder("./init.sh")
         builder.directory(new File(defects4jPath))
         Process process = builder.start()
-        process.waitFor()
+        def status = process.waitFor()
         process.inputStream.eachLine { log.info it.toString() }
         process.inputStream.close()
+        log.info "Status when starting defects4j: $status"
     }
 
     private void addDefect4jServiceToThePath(){
@@ -76,9 +77,21 @@ class BugManager {
         builder.directory(new File(defects4jPath))
         builder.inheritIO()
         Process process = builder.start()
-        process.waitFor()
+        def status = process.waitFor()
         process.inputStream.eachLine { log.info it.toString() }
         process.inputStream.close()
+        log.info "Status when adding defects4j to the path: $status"
+    }
+
+    private void configureMajorOpt(){
+        ProcessBuilder builder = new ProcessBuilder("./export_major.sh")
+        builder.directory(new File(defects4jPath))
+        builder.inheritIO()
+        Process process = builder.start()
+        def status = process.waitFor()
+        process.inputStream.eachLine { log.info it.toString() }
+        process.inputStream.close()
+        log.info "Status when executing export_major.sh: $status"
     }
 
     private void generateBugCsv(){
@@ -269,6 +282,9 @@ class BugManager {
         //adiciona os executáveis do Defects4J ao path
         addDefect4jServiceToThePath()
         log.info "Defects4J's executables were added to the path"
+
+        //configuração para salvar os mutantes gerados
+        configureMajorOpt()
 
         //gera um arquivo "projeto_bugs.csv" para cada projeto a se gerar merges sintéticos, resumindo informações
         //sobre os bugs ativos

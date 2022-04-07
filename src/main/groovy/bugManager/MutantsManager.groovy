@@ -35,17 +35,6 @@ class MutantsManager {
         }
     }
 
-    private void configureMajorOpt(){
-        ProcessBuilder builder = new ProcessBuilder("${defects4jFolder}${File.separator}export_major.sh")
-        builder.directory(new File(bug.buggyFolder))
-        builder.inheritIO()
-        Process process = builder.start()
-        def status = process.waitFor()
-        process.inputStream.eachLine { log.info it.toString() }
-        process.inputStream.close()
-        log.info "Status when executing export_major.sh: $status"
-    }
-
     void generateMutants(){
         ProcessBuilder builder = new ProcessBuilder("defects4j", "mutation", "MAJOR-OPT", "-i", "instrument_classes")
         builder.directory(new File(bug.buggyFolder))
@@ -62,7 +51,6 @@ class MutantsManager {
         } else {
             generateInstrumentedClassesFile()
             log.info "The instrumented classes file was created: ${instrumentedClassesFile}"
-            configureMajorOpt()
             generateMutants()
             configureMutantsName()
             log.info "Defects4J's generated ${mutantsName.size()} mutants in folder: ${mutantsFolder}"
