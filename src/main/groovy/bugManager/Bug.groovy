@@ -20,21 +20,23 @@ class Bug {
         def status = process.waitFor()
         process.inputStream.eachLine { log.info it.toString() }
         process.inputStream.close()
-        log.info "Status: $status"
+        log.info "Status executing test with coverage: $status"
     }
 
     boolean executeTest(String test){
         ProcessBuilder builder = new ProcessBuilder("defects4j", "test", "-t", test)
         builder.directory(new File(fixedFolder))
         Process process = builder.start()
-        process.waitFor()
-        def output = process.inputStream.eachLine { log.info it.toString() }
-        def failingTest = output.find{
-            it =~ /Failing tests: [1-9]+[\d]*/
+        builder.inheritIO()
+        def status = process.waitFor()
+        def output = process.inputStream.readLines()
+        output.each { log.info it.toString() }
+        String failingTest = output.find{
+            it ==~ /Failing tests: [1-9]+/
         }
         process.inputStream.close()
-        if(failingTest) return false //teste falhou
-        else return true //teste passou
+        log.info "Status executing test: $status"
+        return failingTest == null //teste passou
     }
 
 }

@@ -1,6 +1,7 @@
 package bugManager
 
 import au.com.bytecode.opencsv.CSVReader
+import au.com.bytecode.opencsv.CSVWriter
 import gitManager.GitManager
 import groovy.util.logging.Slf4j
 import coverageManager.CoverageManager
@@ -19,6 +20,7 @@ class BugManager {
     List<Bug> bugs
     List<MutantsManager> mutantsManagerList
     List<SyntheticMerge> syntheticMerges
+    String syntheticMergesCsv
 
     BugManager(){
         this(verifyCurrentFolder())
@@ -34,6 +36,9 @@ class BugManager {
         this.bugs = []
         this.mutantsManagerList = []
         this.syntheticMerges = []
+        this.syntheticMergesCsv = "${defects4jPath}${File.separator}syntheticMerges.csv"
+
+        createSyntheticMergesCsv()
 
         log.info "defects4jPath: ${defects4jPath}"
         log.info "projectsFolder: ${projectsFolder}"
@@ -46,6 +51,17 @@ class BugManager {
 
         //informa os projetos para os quais serão criados merges sintéticos
         initializeProjects()
+    }
+
+    private createSyntheticMergesCsv(){
+        def file = new File(syntheticMergesCsv)
+        if(file.exists()){
+            file.delete()
+        }
+        String[] header = ["BUG_ID", "BUG_PROJECT", "MERGE FOLDER", "MUTANT FOLDER"]
+        List<String[]> content = []
+        content += header
+        exportSyntheticMerges(content)
     }
 
     private createCheckoutFolders(){
@@ -160,7 +176,8 @@ class BugManager {
         mutantsManagerList = []
         def buggyFolders = new File(buggyRevisionFolder).listFiles()?.collect{it.absolutePath }
 
-        bugs.each{ bug ->
+        def bug = bugs.first()
+        //bugs.each{ bug ->
             def folder = buggyFolders.find{ it.endsWith("${bug.project}_${bug.id}") }
             if(folder){
                 def test = bug.failingTests.first()
@@ -176,15 +193,16 @@ class BugManager {
                 mm.run()
                 mutantsManagerList += mm
             }
-        }
+        //}
     }
 
     private void generateSyntheticMerges(){
-        def syntheticMerges = []
         def buggyFolders = new File(buggyRevisionFolder).listFiles()?.collect{it.absolutePath }
 
         for(int i=0; i<bugs.size(); i++){
             Bug bug = bugs.get(i)
+            log.info "Generating synthetic merge for bug '${bug.id}' from project '${bug.project}'"
+
             def folder = buggyFolders.find{ it.endsWith("${bug.project}_${bug.id}") }
             if(!folder) continue
             MutantsManager mm = mutantsManagerList.find{ it.bug == bug }
@@ -195,15 +213,19 @@ class BugManager {
             for(int j=0; j<mm.mutantsName.size(); j++){
                 String mutantFolder = mm.mutantsName.get(j)
                 String mutantPath = "${mm.mutantsFolder}${File.separator}${mutantFolder}"
+                log.info "Trying mutant '${mutantPath}'"
 
                 checkoutFixedRevision(bug)
+                log.info "Checked out fixed revision in folder '${bug.fixedFolder}'"
 
-                GitManager gm = new GitManager(fixedRevisionFolder, mutantPath)
+                GitManager gm = new GitManager(bug.fixedFolder, mutantPath)
                 gm.run()
 
                 foundFailedTest = false
                 for(int k=0; k<bug.failingTests.size(); k++){
                     boolean passed = bug.executeTest(bug.failingTests.get(k))
+                    def resultToShow = passed ? "Passed" : "Failed"
+                    log.info "Test execution after merge: ${resultToShow}"
                     if(!passed){
                         foundFailedTest = true
                         break
@@ -212,18 +234,28 @@ class BugManager {
 
                 if(foundFailedTest) {
                     syntheticMerge = new SyntheticMerge(bug:bug, mutantPath:mutantPath, conflictCheckoutFolder:bug.fixedFolder)
-                    syntheticMerges += syntheticMerge
+                    this.syntheticMerges += syntheticMerge
+                    saveSyntheticMerge(syntheticMerge)
                     break
                 }
             }
+            log.info "Partial number of generated synthetic merges: ${this.syntheticMerges.size()}"
         }
     }
 
-    private void listSyntheticMerges(){
-        log.info "List of synthetic merges: ${syntheticMerges.size()}"
-        syntheticMerges.each{ sm ->
-            log.info "${sm.conflictCheckoutFolder}"
-        }
+    private void saveSyntheticMerge(SyntheticMerge sm){
+        List<String[]> content = []
+        def temp = [sm.bug.id, sm.bug.project, sm.conflictCheckoutFolder, sm.mutantPath]
+        log.info temp.toString()
+        content += temp as String[]
+        exportSyntheticMerges(content)
+    }
+
+    private void exportSyntheticMerges(List content){
+        def file = new File(syntheticMergesCsv)
+        CSVWriter writer = new CSVWriter(new FileWriter(file, true))
+        writer.writeAll(content)
+        writer.close()
     }
 
     private static verifyCurrentFolder(){
@@ -276,15 +308,15 @@ class BugManager {
 
     void run(){
         //inicializa o serviço do Defects4J
-        startDefect4jService()
-        log.info "Defects4J was initialized"
+        //startDefect4jService()
+        //log.info "Defects4J was initialized"
 
         //adiciona os executáveis do Defects4J ao path
-        addDefect4jServiceToThePath()
-        log.info "Defects4J's executables were added to the path"
+        //addDefect4jServiceToThePath()
+        //log.info "Defects4J's executables were added to the path"
 
         //configuração para salvar os mutantes gerados
-        configureMajorOpt()
+        //configureMajorOpt()
 
         //gera um arquivo "projeto_bugs.csv" para cada projeto a se gerar merges sintéticos, resumindo informações
         //sobre os bugs ativos
@@ -307,8 +339,7 @@ class BugManager {
         //gera merges sintéticos
         generateSyntheticMerges()
 
-        //exibe listagem de merges sintéticos
-        listSyntheticMerges()
+        log.info "Number of generated synthetic merges: ${this.syntheticMerges.size()}"
     }
 
 }
