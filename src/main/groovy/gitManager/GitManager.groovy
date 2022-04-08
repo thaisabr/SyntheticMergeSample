@@ -49,7 +49,7 @@ class GitManager {
         //log.info "Fix branch was deleted"
     }
 
-    def configureOriginalBug(){
+    private configureOriginalBug(){
         createOriginalBuggyBranch()
         def currentBranch = verifyCurrentBranch()
         log.info "current branch: ${currentBranch}"
@@ -63,7 +63,7 @@ class GitManager {
         currentBranch
     }
 
-    def configureFixBranch(){
+    private configureFixBranch(){
         createFixBranch()
         log.info "Fix branch was created and checked out"
         def currentBranch = verifyCurrentBranch()
@@ -84,7 +84,7 @@ class GitManager {
         currentBranch
     }
 
-    def configureMutantBranch(){
+    private configureMutantBranch(){
         createMutantBranch()
         log.info "Mutant branch was created and checked out"
         def currentBranch = verifyCurrentBranch()
@@ -114,16 +114,6 @@ class GitManager {
         process.inputStream.close()
         log.info "status creating original buggy branch: $status"
     }
-
-    /*def createFixedBranch(){
-        def builder = new ProcessBuilder('git','branch', fixedBranchName)
-        builder.directory(new File(localPath))
-        def process = builder.start()
-        def status = process.waitFor()
-        process.inputStream.eachLine { log.info it.toString() }
-        process.inputStream.close()
-        log.info "status creating fixed branch: $status"
-    }*/
 
     def mergeOriginalBugggyBranch(){
         def builder = new ProcessBuilder('git','merge', originalBuggyBranchName)
@@ -208,16 +198,6 @@ class GitManager {
         }
     }
 
-    def versioningAll(){
-        ProcessBuilder builder = new ProcessBuilder("git", "add", ".")
-        builder.directory(new File(originalBugFolder))
-        Process process = builder.start()
-        def status = process.waitFor()
-        process.inputStream.eachLine { log.info it.toString() }
-        process.inputStream.close()
-        log.info "status versioning: $status"
-    }
-
     def versioningSource(){
         ProcessBuilder builder
 
@@ -240,16 +220,6 @@ class GitManager {
         process.inputStream.close()
         log.info "status versioning: $status"
     }
-
-    /*def checkoutFixedBranch(){
-        def builder = new ProcessBuilder('git','checkout', detachedBranchName)
-        builder.directory(new File(localPath))
-        def process = builder.start()
-        def status = process.waitFor()
-        process.inputStream.eachLine { log.info it.toString() }
-        process.inputStream.close()
-        log.info "status checking out fixed branch: $status"
-    }*/
 
     def commitMutant(){
         def builder = new ProcessBuilder('git','commit','-m','buggy mutant')
@@ -276,12 +246,10 @@ class GitManager {
         def source = "${fixedBugFolder}${File.separator}src${File.separator}main${File.separator}java${File.separator}."
         def destination = "${originalBugFolder}${File.separator}src${File.separator}main${File.separator}java"
 
-        log.info "fixedBugFolder: $fixedBugFolder"
         log.info "source: $source"
         log.info "destination: $destination"
 
         ProcessBuilder builder = new ProcessBuilder("cp", "-r", source, destination)
-        //ProcessBuilder builder = new ProcessBuilder("rsync", "-av", '--exclude=".*"', source, destination)
         builder.directory(new File(originalBugFolder))
         builder.inheritIO()
         Process process = builder.start()
@@ -296,12 +264,10 @@ class GitManager {
         def source = "${fixedBugFolder}${File.separator}source${File.separator}."
         def destination = "${originalBugFolder}${File.separator}source"
 
-        log.info "fixedBugFolder: $fixedBugFolder"
         log.info "source: $source"
         log.info "destination: $destination"
 
         ProcessBuilder builder = new ProcessBuilder("cp", "-r", source, destination)
-        //ProcessBuilder builder = new ProcessBuilder("rsync", "-av", '--exclude=".*"', source, destination)
         builder.directory(new File(originalBugFolder))
         builder.inheritIO()
         Process process = builder.start()
