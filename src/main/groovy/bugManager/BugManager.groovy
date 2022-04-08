@@ -161,6 +161,19 @@ class BugManager {
         }
     }
 
+    private void checkoutFixedRevisions(){
+        this.bugs.each { bug ->
+            ProcessBuilder builder = new ProcessBuilder("defects4j", "checkout", "-p", bug.project, "-v",
+                    "${bug.id}f", "-w", bug.fixedFolder)
+            builder.directory(new File(defects4jPath))
+            Process process = builder.start()
+            process.waitFor()
+            process.inputStream.eachLine { log.info it.toString() }
+            process.inputStream.close()
+            log.info "Defects4J's checked out the fixed revision: '${bug.fixedFolder}'"
+        }
+    }
+
     private void checkoutFixedRevision(Bug bug){
         deleteFolder(bug.fixedFolder)
         ProcessBuilder builder = new ProcessBuilder("defects4j", "checkout", "-p", bug.project, "-v",
@@ -176,8 +189,7 @@ class BugManager {
         mutantsManagerList = []
         def buggyFolders = new File(buggyRevisionFolder).listFiles()?.collect{it.absolutePath }
 
-        def bug = bugs.first()
-        //bugs.each{ bug ->
+        bugs.each{ bug ->
             def folder = buggyFolders.find{ it.endsWith("${bug.project}_${bug.id}") }
             if(folder){
                 def test = bug.failingTests.first()
@@ -193,7 +205,7 @@ class BugManager {
                 mm.run()
                 mutantsManagerList += mm
             }
-        //}
+        }
     }
 
     private void generateSyntheticMerges(){
@@ -215,10 +227,7 @@ class BugManager {
                 String mutantPath = "${mm.mutantsFolder}${File.separator}${mutantFolder}"
                 log.info "Trying mutant '${mutantPath}'"
 
-                checkoutFixedRevision(bug)
-                log.info "Checked out fixed revision in folder '${bug.fixedFolder}'"
-
-                GitManager gm = new GitManager(bug.fixedFolder, mutantPath)
+                GitManager gm = new GitManager(bug.buggyFolder, mutantPath, bug.fixedFolder)
                 gm.run()
 
                 foundFailedTest = false
@@ -332,6 +341,9 @@ class BugManager {
 
         //faz checkout de todos os bugs dos projetos selecionados para geração de merges sintéticos
         checkoutBuggyRevisions()
+
+        //faz checkout de todas as correções dos projetos selecionados para geração de merges sintéticos
+        checkoutFixedRevisions()
 
         //gera mutantes para cada revisão bugada
         generateMutantsForBuggyRevisions()
