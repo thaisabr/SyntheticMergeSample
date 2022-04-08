@@ -74,8 +74,8 @@ class BugManager {
     }
 
     private void initializeProjects(){
-        this.projects = ["Chart"/*, "Cli", "Closure", "Codec", "Collections", "Compress", "Csv", "Gson", "JacksonCore",
-                         "JacksonDatabind", "JacksonXml", "Jsoup", "JxPath", "Lang", "Math", "Mockito", "Time"*/]
+        this.projects = ["Chart", "Cli", "Closure", "Codec", "Collections", "Compress", "Csv", "Gson", "JacksonCore",
+                         "JacksonDatabind", "JacksonXml", "Jsoup", "JxPath", "Lang", "Math", "Mockito", "Time"]
     }
 
     private void startDefect4jService(){
