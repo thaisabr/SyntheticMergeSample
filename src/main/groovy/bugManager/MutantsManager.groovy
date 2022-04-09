@@ -28,7 +28,6 @@ class MutantsManager {
 
         newFile.withWriter("utf-8") { out ->
             methodsToMutate.eachWithIndex{ method, index ->
-                log.info "Method: ${method}"
                 if( (index+1) == methodsToMutate.size()) out.write(method)
                 else out.write(method+"\n")
             }
@@ -39,6 +38,7 @@ class MutantsManager {
         ProcessBuilder builder = new ProcessBuilder("defects4j", "mutation", "MAJOR-OPT", "-i", "instrument_classes")
         builder.directory(new File(bug.buggyFolder))
         Process process = builder.start()
+        builder.inheritIO()
         def status = process.waitFor()
         process.inputStream.eachLine { log.info it.toString() }
         process.inputStream.close()

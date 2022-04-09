@@ -23,11 +23,7 @@ class BugManager {
     String syntheticMergesCsv
 
     BugManager(){
-        this(verifyCurrentFolder())
-    }
-
-    BugManager(String defects4jPath){
-        this.defects4jPath = defects4jPath
+        this.defects4jPath = verifyCurrentFolder()
         this.projectsFolder = "${this.defects4jPath}${File.separator}framework${File.separator}projects${File.separator}"
         this.bugsFolder = "${defects4jPath}${File.separator}bugs"
         this.buggyRevisionFolder = "${bugsFolder}${File.separator}buggy"
@@ -51,6 +47,11 @@ class BugManager {
 
         //informa os projetos para os quais serão criados merges sintéticos
         initializeProjects()
+    }
+
+    BugManager(String project){
+        this()
+        this.projects = [project]
     }
 
     private createSyntheticMergesCsv(){
@@ -110,6 +111,8 @@ class BugManager {
         log.info "Status when executing export_major.sh: $status"
     }
 
+    //revision.id.buggy - 5
+    //revision.id.fixed - 6
     private void generateBugCsv(){
         this.projects.each{ project ->
             def file = "${project}_bugs.csv"
