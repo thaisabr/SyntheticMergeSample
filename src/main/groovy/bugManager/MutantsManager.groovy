@@ -2,6 +2,8 @@ package bugManager
 
 import groovy.util.logging.Slf4j
 
+import java.util.concurrent.TimeUnit
+
 @Slf4j
 class MutantsManager {
 
@@ -38,11 +40,16 @@ class MutantsManager {
         ProcessBuilder builder = new ProcessBuilder("defects4j", "mutation", "MAJOR-OPT", "-i", "instrument_classes")
         builder.directory(new File(bug.buggyFolder))
         Process process = builder.start()
-        builder.inheritIO()
-        def status = process.waitFor()
-        process.inputStream.eachLine { log.info it.toString() }
-        process.inputStream.close()
-        log.info "Status when generating mutants: $status"
+        //builder.inheritIO()
+        def status = process.waitFor(3, TimeUnit.MINUTES)
+        if(!status){
+            process.destroyForcibly()
+            log.info "Status when generating mutants: The timeout was reached and the process was killed"
+        } else {
+            process.inputStream.eachLine { log.info it.toString() }
+            process.inputStream.close()
+            log.info "Status when generating mutants: $status"
+        }
     }
 
     void run(){

@@ -2,6 +2,7 @@ package bugManager
 
 import au.com.bytecode.opencsv.CSVReader
 import au.com.bytecode.opencsv.CSVWriter
+import gitManager.AlternativeGitManager
 import gitManager.GitManager
 import groovy.util.logging.Slf4j
 import coverageManager.CoverageManager
@@ -111,8 +112,6 @@ class BugManager {
         log.info "Status when executing export_major.sh: $status"
     }
 
-    //revision.id.buggy - 5
-    //revision.id.fixed - 6
     private void generateBugCsv(){
         this.projects.each{ project ->
             def file = "${project}_bugs.csv"
@@ -144,41 +143,41 @@ class BugManager {
                 def project = entry[1]
                 def modifiedClasses = entry[7].substring(0, entry[7].size()).tokenize(';')
                 def failingTests = entry[8].substring(0, entry[8].size()).tokenize(';')
+                def buggyRevision = entry[5]
+                def fixedRevision = entry[6]
                 this.bugs += new Bug(id: id, project: project, failingTests: failingTests, modifiedClasses: modifiedClasses,
                         buggyFolder:"${buggyRevisionFolder}${File.separator}${project}_${id}",
-                        fixedFolder:"${fixedRevisionFolder}${File.separator}${project}_${id}")
+                        fixedFolder:"${fixedRevisionFolder}${File.separator}${project}_${id}",
+                        buggyRevision: buggyRevision,
+                        fixedRevision: fixedRevision)
             }
         }
     }
 
+    void checkoutBuggyRevision(Bug bug){
+        ProcessBuilder builder = new ProcessBuilder("defects4j", "checkout", "-p", bug.project, "-v",
+                "${bug.id}b", "-w", bug.buggyFolder)
+        builder.directory(new File(defects4jPath))
+        Process process = builder.start()
+        process.waitFor()
+        process.inputStream.eachLine { log.info it.toString() }
+        process.inputStream.close()
+        log.info "Defects4J's checked out the buggy revision: '${bug.buggyFolder}'"
+    }
+
     private void checkoutBuggyRevisions(){
         this.bugs.each { bug ->
-            ProcessBuilder builder = new ProcessBuilder("defects4j", "checkout", "-p", bug.project, "-v",
-                    "${bug.id}b", "-w", bug.buggyFolder)
-            builder.directory(new File(defects4jPath))
-            Process process = builder.start()
-            process.waitFor()
-            process.inputStream.eachLine { log.info it.toString() }
-            process.inputStream.close()
-            log.info "Defects4J's checked out the buggy revision: '${bug.buggyFolder}'"
+            checkoutBuggyRevision(bug)
         }
     }
 
     private void checkoutFixedRevisions(){
         this.bugs.each { bug ->
-            ProcessBuilder builder = new ProcessBuilder("defects4j", "checkout", "-p", bug.project, "-v",
-                    "${bug.id}f", "-w", bug.fixedFolder)
-            builder.directory(new File(defects4jPath))
-            Process process = builder.start()
-            process.waitFor()
-            process.inputStream.eachLine { log.info it.toString() }
-            process.inputStream.close()
-            log.info "Defects4J's checked out the fixed revision: '${bug.fixedFolder}'"
+            checkoutFixedRevision(bug)
         }
     }
 
-    private void checkoutFixedRevision(Bug bug){
-        deleteFolder(bug.fixedFolder)
+    void checkoutFixedRevision(Bug bug){
         ProcessBuilder builder = new ProcessBuilder("defects4j", "checkout", "-p", bug.project, "-v",
                 "${bug.id}f", "-w", bug.fixedFolder)
         builder.directory(new File(defects4jPath))
@@ -186,6 +185,7 @@ class BugManager {
         process.waitFor()
         process.inputStream.eachLine { log.info it.toString() }
         process.inputStream.close()
+        log.info "Defects4J's checked out the fixed revision: '${bug.fixedFolder}'"
     }
 
     private void generateMutantsForBuggyRevisions(){
@@ -208,14 +208,14 @@ class BugManager {
                 mm.run()
                 mutantsManagerList += mm
             }
-        }
+       }
     }
 
     private void generateSyntheticMerges(){
         def buggyFolders = new File(buggyRevisionFolder).listFiles()?.collect{it.absolutePath }
 
-        for(int i=0; i<bugs.size(); i++){
-            Bug bug = bugs.get(i)
+        for(int i=0; i<this.bugs.size(); i++){
+            Bug bug = this.bugs.get(i)
             log.info "Generating synthetic merge for bug '${bug.id}' from project '${bug.project}'"
 
             def folder = buggyFolders.find{ it.endsWith("${bug.project}_${bug.id}") }
@@ -230,8 +230,13 @@ class BugManager {
                 String mutantPath = "${mm.mutantsFolder}${File.separator}${mutantFolder}"
                 log.info "Trying mutant '${mutantPath}'"
 
-                GitManager gm = new GitManager(bug.buggyFolder, mutantPath, bug.fixedFolder)
-                gm.run()
+                AlternativeGitManager gm = new AlternativeGitManager(bug.buggyFolder, mutantPath, bug.fixedFolder,
+                       bug.fixedRevision)
+                def result = gm.run()
+                if(!result){
+                    log.error "It was not possible to generate synthetic merge using $mutantPath"
+                    continue
+                }
 
                 foundFailedTest = false
                 for(int k=0; k<bug.failingTests.size(); k++){

@@ -11,6 +11,8 @@ class Bug {
     List<String> modifiedClasses
     String buggyFolder
     String fixedFolder
+    String buggyRevision
+    String fixedRevision
 
     void executeTestWithCoverage(String test){
         log.info "Executing test with coverage: ${buggyFolder}, ${test}"
