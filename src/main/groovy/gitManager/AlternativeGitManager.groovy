@@ -10,7 +10,6 @@ class AlternativeGitManager {
     String originalBugFolder
     String buggyMutantFolder
     String detachedName
-    String originalBuggyBranchName
     String buggyMutantBranchName
     String fixedBugFolder
 
@@ -21,7 +20,6 @@ class AlternativeGitManager {
         this.fixedBugFolder = fixedBugFolder
         this.fixingRevisionCommit = fixingRevisionCommit
         this.buggyMutantBranchName = "mutantSpg2022"
-        this.originalBuggyBranchName = "bugSpg2022"
         this.mainBranch = "masterSpg2022"
     }
 
@@ -58,14 +56,19 @@ class AlternativeGitManager {
         currentBranch = verifyCurrentBranch()
         log.info "current branch: ${currentBranch}"
 
+        //Integra a branch mutante com a branch que corrige o bug
         mergeBuggyBranch()
         log.info "We merged branches ${currentBranch} and ${buggyMutantBranchName}"
 
         currentBranch = verifyCurrentBranch()
         log.info "current branch: ${currentBranch}"
 
+        true
+    }
+
+    boolean restore(){
         checkoutDetached()
-        currentBranch = verifyCurrentBranch()
+        def currentBranch = verifyCurrentBranch()
         log.info "current branch: ${currentBranch}"
 
         deleteMainBranch()

@@ -232,6 +232,7 @@ class BugManager {
 
                 AlternativeGitManager gm = new AlternativeGitManager(bug.buggyFolder, mutantPath, bug.fixedFolder,
                        bug.fixedRevision)
+
                 def result = gm.run()
                 if(!result){
                     log.error "It was not possible to generate synthetic merge using $mutantPath"
@@ -254,6 +255,11 @@ class BugManager {
                     this.syntheticMerges += syntheticMerge
                     saveSyntheticMerge(syntheticMerge)
                     break
+                }
+
+                result = gm.restore()
+                if(!result){
+                    log.error "It was not possible to restore the original branch when generating synthetic merges using $mutantPath"
                 }
             }
             log.info "Partial number of generated synthetic merges: ${this.syntheticMerges.size()}"
@@ -351,7 +357,7 @@ class BugManager {
         checkoutBuggyRevisions()
 
         //faz checkout de todas as correções dos projetos selecionados para geração de merges sintéticos
-        checkoutFixedRevisions()
+        //checkoutFixedRevisions()
 
         //gera mutantes para cada revisão bugada
         generateMutantsForBuggyRevisions()

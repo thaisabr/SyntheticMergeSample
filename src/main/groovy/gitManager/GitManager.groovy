@@ -126,7 +126,7 @@ class GitManager {
     }
 
     def checkoutMasterBranch(){
-        def builder = new ProcessBuilder('git','checkout', 'master')
+        def builder = new ProcessBuilder('git','checkout', '-f', 'master')
         builder.directory(new File(originalBugFolder))
         def process = builder.start()
         def status = process.waitFor()
