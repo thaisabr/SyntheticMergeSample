@@ -16,8 +16,10 @@ class Main {
             if(!(project in projects)) project = null
         }
         if(project){
+            log.info "Generating bugs for project '${project}'"
             bugManager = new BugManager(project)
         } else {
+            log.info "Generating bugs for 7 projects: Closure, Math, Lang, Mockito, Time, Chart"
             bugManager = new BugManager()
         }
         bugManager.run()

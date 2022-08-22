@@ -5,87 +5,92 @@ import groovy.util.logging.Slf4j
 @Slf4j
 class GitManager {
 
+    String mainBranch
+    String fixingRevisionCommit
     String originalBugFolder
     String buggyMutantFolder
     String detachedName
-    String originalBuggyBranchName
-    String fixedBranchName
     String buggyMutantBranchName
     String fixedBugFolder
 
-    GitManager(String originalBugFolder, String buggyMutantFolder, String fixedBugFolder){
+    GitManager(String originalBugFolder, String buggyMutantFolder, String fixedBugFolder,
+               String fixingRevisionCommit){
         this.originalBugFolder = originalBugFolder
         this.buggyMutantFolder = buggyMutantFolder
         this.fixedBugFolder = fixedBugFolder
+        this.fixingRevisionCommit = fixingRevisionCommit
         this.buggyMutantBranchName = "mutantSpg2022"
-        this.fixedBranchName = "fixedSpg2022"
-        this.originalBuggyBranchName = "bugSpg2022"
+        this.mainBranch = "masterSpg2022"
     }
 
-    def run(){
+    boolean run(){
         log.info "localpath: ${originalBugFolder}"
         detachedName = verifyCurrentBranch()
         log.info "detached HEAD: ${detachedName}"
 
-        configureOriginalBug()
+        //cria masterSpg2022 branch a partir da detached head que representa o commit que introduziu o bug
+        createAndCheckoutMainBranch()
+        def currentBranch = verifyCurrentBranch()
+        log.info "currentBranch: ${currentBranch}"
+        if(currentBranch!=mainBranch){
+            log.error "It is not possible to create and checkout '${mainBranch}'"
+            return false
+        }
 
-        def currentBranch = configureFixBranch()
+        //cria branche para o bug mutante
+        configureMutantBranch()
 
-        mergeFixedBranch()
-        log.info "We merged branches ${currentBranch} and ${fixedBranchName}"
+        //volta para a branch principal, que possui o bug original
+        checkoutMainBranch()
+        currentBranch = verifyCurrentBranch()
+        log.info "currentBranch: ${currentBranch}"
+        if(currentBranch!=mainBranch){
+            log.error "It is not possible to checkout '${mainBranch}'"
+            return false
+        }
 
-        currentBranch = configureMutantBranch()
+        //Integra o commit que faz a correção na branch principal
+        mergeCommit(fixingRevisionCommit)
+        log.info "We merged the fixing revision commit"
 
+        currentBranch = verifyCurrentBranch()
+        log.info "current branch: ${currentBranch}"
+
+        //Integra a branch mutante com a branch que corrige o bug
         mergeBuggyBranch()
         log.info "We merged branches ${currentBranch} and ${buggyMutantBranchName}"
 
         currentBranch = verifyCurrentBranch()
         log.info "current branch: ${currentBranch}"
 
-        //deleteBuggyBranch()
-        //log.info "Mutant branch was deleted"
-
-        //deleteFixedBranch()
-        //log.info "Fix branch was deleted"
+        true
     }
 
-    private configureOriginalBug(){
-        createOriginalBuggyBranch()
+    boolean restore(){
+        checkoutDetached()
         def currentBranch = verifyCurrentBranch()
         log.info "current branch: ${currentBranch}"
 
-        checkoutMasterBranch()
-        currentBranch = verifyCurrentBranch()
-        log.info "current branch: ${currentBranch}"
+        deleteMainBranch()
 
-        mergeOriginalBugggyBranch()
-        log.info "The original buggy branch was merged"
-        currentBranch
+        deleteBuggyBranch()
+
+        true
     }
 
-    private configureFixBranch(){
-        createFixBranch()
-        log.info "Fix branch was created and checked out"
-        def currentBranch = verifyCurrentBranch()
-        log.info "current branch: ${currentBranch}"
+    private createAndCheckoutMainBranch(){
+        def builder = new ProcessBuilder('git', 'checkout', '-b', mainBranch)
+        builder.directory(new File(originalBugFolder))
+        def process = builder.start()
+        def status = process.waitFor()
+        process.inputStream.eachLine { log.info it.toString() }
+        process.inputStream.close()
+        log.info "status checked out main branch: $status"
 
-        copyFix()
-        log.info "Fix branch was changed"
-
-        versioningSource()
-        log.info "Changes were versioned"
-
-        commitFix()
-        log.info "Changes were commited"
-
-        checkoutMasterBranch()
-        currentBranch = verifyCurrentBranch()
-        log.info "current branch: ${currentBranch}"
-        currentBranch
     }
 
     private configureMutantBranch(){
-        createMutantBranch()
+        createAndCheckoutMutantBranch()
         log.info "Mutant branch was created and checked out"
         def currentBranch = verifyCurrentBranch()
         log.info "current branch: ${currentBranch}"
@@ -94,56 +99,39 @@ class GitManager {
         log.info "Mutant branch was changed"
 
         versioningSource()
-        log.info "Changes were versioned"
+        log.info "Changes in mutant branch were versioned"
 
         commitMutant()
-        log.info "Changes were commited"
-
-        checkoutMasterBranch()
-        currentBranch = verifyCurrentBranch()
-        log.info "current branch: ${currentBranch}"
-        currentBranch
+        log.info "Changes in mutant branch were commited"
     }
 
-    def createOriginalBuggyBranch(){
-        def builder = new ProcessBuilder('git','branch', originalBuggyBranchName)
+    def checkoutMainBranch(){
+        def builder = new ProcessBuilder('git','checkout', mainBranch)
         builder.directory(new File(originalBugFolder))
         def process = builder.start()
         def status = process.waitFor()
         process.inputStream.eachLine { log.info it.toString() }
         process.inputStream.close()
-        log.info "status creating original buggy branch: $status"
+        log.info "status checked out main branch: $status"
     }
 
-    def mergeOriginalBugggyBranch(){
-        def builder = new ProcessBuilder('git','merge', originalBuggyBranchName)
+    def checkoutDetached(){
+        def builder = new ProcessBuilder('git','checkout', detachedName)
         builder.directory(new File(originalBugFolder))
         def process = builder.start()
         def status = process.waitFor()
         process.inputStream.eachLine { log.info it.toString() }
         process.inputStream.close()
-        log.info "status merging original buggy branch: $status"
+        log.info "status checked out detached: $status"
     }
 
-    def checkoutMasterBranch(){
-        def builder = new ProcessBuilder('git','checkout', '-f', 'master')
+    def mergeCommit(String sha){
+        def builder = new ProcessBuilder('git','merge', sha)
         builder.directory(new File(originalBugFolder))
         def process = builder.start()
         def status = process.waitFor()
         process.inputStream.eachLine { log.info it.toString() }
-        process.inputStream.close()
-        log.info "status checked out master branch: $status"
-    }
-
-    def mergeFixedBranch(){
-        def builder = new ProcessBuilder('git','merge', fixedBranchName)
-        builder.directory(new File(originalBugFolder))
-        builder.inheritIO()
-        def process = builder.start()
-        def status = process.waitFor()
-        process.inputStream.eachLine { log.info it.toString() }
-        process.inputStream.close()
-        log.info "status merging fix branch: $status"
+        status
     }
 
     def verifyCurrentBranch(){
@@ -156,7 +144,7 @@ class GitManager {
         currentBranch
     }
 
-    def createMutantBranch(){
+    def createAndCheckoutMutantBranch(){
         def builder = new ProcessBuilder('git','checkout', '-b', buggyMutantBranchName)
         builder.directory(new File(originalBugFolder))
         def process = builder.start()
@@ -207,9 +195,9 @@ class GitManager {
 
         def source
         if(file.exists()){
-           source = source1
+            source = source1
         } else {
-           source = source2
+            source = source2
         }
 
         builder = new ProcessBuilder("git", "add", "${source}${File.separator}.")
@@ -232,70 +220,6 @@ class GitManager {
         log.info "status commiting mutant: $status"
     }
 
-    def createFixBranch(){
-        def builder = new ProcessBuilder('git','checkout', '-b', fixedBranchName)
-        builder.directory(new File(originalBugFolder))
-        def process = builder.start()
-        def status = process.waitFor()
-        process.inputStream.eachLine { log.info it.toString() }
-        process.inputStream.close()
-        log.info "status creating fixed branch: $status"
-    }
-
-    private int copyFixedVersion1(){
-        def source = "${fixedBugFolder}${File.separator}src${File.separator}main${File.separator}java${File.separator}."
-        def destination = "${originalBugFolder}${File.separator}src${File.separator}main${File.separator}java"
-
-        log.info "source: $source"
-        log.info "destination: $destination"
-
-        ProcessBuilder builder = new ProcessBuilder("cp", "-r", source, destination)
-        builder.directory(new File(originalBugFolder))
-        builder.inheritIO()
-        Process process = builder.start()
-        def status = process.waitFor()
-        process.inputStream.eachLine { log.info it.toString() }
-        process.inputStream.close()
-        log.info "status copying fix (version 1): $status"
-        status
-    }
-
-    private int copyFixedVersion2(){
-        def source = "${fixedBugFolder}${File.separator}source${File.separator}."
-        def destination = "${originalBugFolder}${File.separator}source"
-
-        log.info "source: $source"
-        log.info "destination: $destination"
-
-        ProcessBuilder builder = new ProcessBuilder("cp", "-r", source, destination)
-        builder.directory(new File(originalBugFolder))
-        builder.inheritIO()
-        Process process = builder.start()
-        def status = process.waitFor()
-        process.inputStream.eachLine { log.info it.toString() }
-        process.inputStream.close()
-        log.info "status copying fix (version 2): $status"
-        status
-    }
-
-    def copyFix(){
-        def status = copyFixedVersion1()
-        if (status!=0){
-            copyFixedVersion2()
-        }
-    }
-
-    def commitFix(){
-        def builder = new ProcessBuilder('git','commit','-m','bug fix')
-        builder.directory(new File(originalBugFolder))
-        builder.inheritIO()
-        def process = builder.start()
-        def status = process.waitFor()
-        process.inputStream.eachLine { log.info it.toString() }
-        process.inputStream.close()
-        log.info "status commiting bugfix: $status"
-    }
-
     def mergeBuggyBranch(){
         def builder = new ProcessBuilder('git','merge', buggyMutantBranchName)
         builder.directory(new File(originalBugFolder))
@@ -306,6 +230,16 @@ class GitManager {
         log.info "status merging buggy branch: $status"
     }
 
+    def deleteMainBranch(){
+        ProcessBuilder builder = new ProcessBuilder("git", "branch", "-D", mainBranch)
+        builder.directory(new File(originalBugFolder))
+        Process process = builder.start()
+        def status = process.waitFor()
+        process.inputStream.readLines()
+        process.inputStream.close()
+        log.info "status deleting main branch: $status"
+    }
+
     def deleteBuggyBranch(){
         ProcessBuilder builder = new ProcessBuilder("git", "branch", "-D", buggyMutantBranchName)
         builder.directory(new File(originalBugFolder))
@@ -314,16 +248,6 @@ class GitManager {
         process.inputStream.readLines()
         process.inputStream.close()
         log.info "status deleting buggy branch: $status"
-    }
-
-    def deleteFixedBranch(){
-        ProcessBuilder builder = new ProcessBuilder("git", "branch", "-D", fixedBranchName)
-        builder.directory(new File(originalBugFolder))
-        Process process = builder.start()
-        def status = process.waitFor()
-        process.inputStream.readLines()
-        process.inputStream.close()
-        log.info "status deleting fix branch: $status"
     }
 
 }

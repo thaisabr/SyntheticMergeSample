@@ -2,7 +2,6 @@ package bugManager
 
 import au.com.bytecode.opencsv.CSVReader
 import au.com.bytecode.opencsv.CSVWriter
-import gitManager.AlternativeGitManager
 import gitManager.GitManager
 import groovy.util.logging.Slf4j
 import coverageManager.CoverageManager
@@ -76,8 +75,11 @@ class BugManager {
     }
 
     private void initializeProjects(){
-        this.projects = ["Chart", "Cli", "Closure", "Codec", "Collections", "Compress", "Csv", "Gson", "JacksonCore",
-                         "JacksonDatabind", "JacksonXml", "Jsoup", "JxPath", "Lang", "Math", "Mockito", "Time"]
+        //PROVISÓRIO
+        this.projects = ["Closure", "Math", "Lang", "Mockito", "Time", "Chart"
+                         //, "Cli", "Codec", "Collections", "Compress", "Csv", "Gson", "JacksonCore",
+                         //"JacksonDatabind", "JacksonXml", "Jsoup", "JxPath"
+        ]
     }
 
     private void startDefect4jService(){
@@ -171,12 +173,6 @@ class BugManager {
         }
     }
 
-    private void checkoutFixedRevisions(){
-        this.bugs.each { bug ->
-            checkoutFixedRevision(bug)
-        }
-    }
-
     void checkoutFixedRevision(Bug bug){
         ProcessBuilder builder = new ProcessBuilder("defects4j", "checkout", "-p", bug.project, "-v",
                 "${bug.id}f", "-w", bug.fixedFolder)
@@ -195,16 +191,23 @@ class BugManager {
         bugs.each{ bug ->
             def folder = buggyFolders.find{ it.endsWith("${bug.project}_${bug.id}") }
             if(folder){
-                def test = bug.failingTests.first()
-                //executa teste com cobertura
-                bug.executeTestWithCoverage(test)
+                def tests = bug.failingTests
+                def coveredMethods = []
 
-                //identifica os métodos cobertos pelos testes
-                CoverageManager cm = new CoverageManager(bug.buggyFolder)
-                cm.configureCoveredMethods()
+                for(int i=0; i<tests.size(); i++) {
+                    def test = bug.failingTests.first()
+                    //executa teste com cobertura
+                    bug.executeTestWithCoverage(test)
+
+                    //identifica os métodos cobertos pelos testes
+                    CoverageManager cm = new CoverageManager(bug.buggyFolder)
+                    cm.configureCoveredMethods()
+                    coveredMethods += cm.coveredMethods
+                    coveredMethods = coveredMethods.unique()
+                }
 
                 //gera mutantes
-                MutantsManager mm = new MutantsManager(bug, cm.coveredMethods, defects4jPath)
+                MutantsManager mm = new MutantsManager(bug, coveredMethods, defects4jPath)
                 mm.run()
                 mutantsManagerList += mm
             }
@@ -230,7 +233,7 @@ class BugManager {
                 String mutantPath = "${mm.mutantsFolder}${File.separator}${mutantFolder}"
                 log.info "Trying mutant '${mutantPath}'"
 
-                AlternativeGitManager gm = new AlternativeGitManager(bug.buggyFolder, mutantPath, bug.fixedFolder,
+                GitManager gm = new GitManager(bug.buggyFolder, mutantPath, bug.fixedFolder,
                        bug.fixedRevision)
 
                 def result = gm.run()
@@ -355,9 +358,6 @@ class BugManager {
 
         //faz checkout de todos os bugs dos projetos selecionados para geração de merges sintéticos
         checkoutBuggyRevisions()
-
-        //faz checkout de todas as correções dos projetos selecionados para geração de merges sintéticos
-        //checkoutFixedRevisions()
 
         //gera mutantes para cada revisão bugada
         generateMutantsForBuggyRevisions()
