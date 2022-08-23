@@ -21,8 +21,10 @@ class BugManager {
     List<MutantsManager> mutantsManagerList
     List<SyntheticMerge> syntheticMerges
     String syntheticMergesCsv
+    final int BUGS_LIMIT
 
-    BugManager(){
+    BugManager(int limit){
+        this.BUGS_LIMIT = limit
         this.defects4jPath = verifyCurrentFolder()
         this.projectsFolder = "${this.defects4jPath}${File.separator}framework${File.separator}projects${File.separator}"
         this.bugsFolder = "${defects4jPath}${File.separator}bugs"
@@ -49,8 +51,8 @@ class BugManager {
         initializeProjects()
     }
 
-    BugManager(String project){
-        this()
+    BugManager(String project, int limit){
+        this(limit)
         this.projects = [project]
     }
 
@@ -140,7 +142,7 @@ class BugManager {
         this.bugs = []
         this.bugFiles.each{ bugFile ->
             List<String[]> entries = readCsv(bugFile)
-            entries?.each{ entry ->
+            entries?.subList(0, BUGS_LIMIT)?.each{ entry ->
                 def id = entry[0]
                 def project = entry[1]
                 def modifiedClasses = entry[7].substring(0, entry[7].size()).tokenize(';')
@@ -208,8 +210,8 @@ class BugManager {
 
                 //gera mutantes
                 MutantsManager mm = new MutantsManager(bug, coveredMethods, defects4jPath)
-                mm.run()
-                mutantsManagerList += mm
+                boolean generateMutant = mm.run()
+                if(generateMutant) mutantsManagerList += mm
             }
        }
     }

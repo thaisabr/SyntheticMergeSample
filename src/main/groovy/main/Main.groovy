@@ -17,10 +17,10 @@ class Main {
         }
         if(project){
             log.info "Generating bugs for project '${project}'"
-            bugManager = new BugManager(project)
+            bugManager = new BugManager(project, 50)
         } else {
             log.info "Generating bugs for 7 projects: Closure, Math, Lang, Mockito, Time, Chart"
-            bugManager = new BugManager()
+            bugManager = new BugManager(50)
         }
         bugManager.run()
     }

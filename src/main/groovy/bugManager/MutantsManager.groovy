@@ -52,15 +52,17 @@ class MutantsManager {
         }
     }
 
-    void run(){
+    boolean run(){
         if(methodsToMutate.isEmpty()){
             log.info "There is no methods to mutate."
+            return false
         } else {
             generateInstrumentedClassesFile()
             log.info "The instrumented classes file was created: ${instrumentedClassesFile}"
             generateMutants()
             configureMutantsName()
             log.info "Defects4J's generated ${mutantsName.size()} mutants in folder: ${mutantsFolder}"
+            return true
         }
     }
 
