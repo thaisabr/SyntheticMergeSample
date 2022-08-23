@@ -14,7 +14,6 @@ class BugManager {
     String projectsFolder
     String bugsFolder
     String buggyRevisionFolder
-    String fixedRevisionFolder
     List<String> projects
     List<String> bugFiles
     List<Bug> bugs
@@ -29,7 +28,6 @@ class BugManager {
         this.projectsFolder = "${this.defects4jPath}${File.separator}framework${File.separator}projects${File.separator}"
         this.bugsFolder = "${defects4jPath}${File.separator}bugs"
         this.buggyRevisionFolder = "${bugsFolder}${File.separator}buggy"
-        this.fixedRevisionFolder = "${bugsFolder}${File.separator}fixed"
         this.bugFiles = []
         this.bugs = []
         this.mutantsManagerList = []
@@ -42,9 +40,8 @@ class BugManager {
         log.info "projectsFolder: ${projectsFolder}"
         log.info "bugsFolder: ${bugsFolder}"
         log.info "buggyRevisionFolder: ${buggyRevisionFolder}"
-        log.info "fixedRevisionFolder: ${fixedRevisionFolder}"
 
-        //cria as pastas "bugs/buggy" e "bugs/fixed" internas à pasta do defects4j
+        //cria a pasta "bugs/buggy" interna à pasta do defects4j
         createCheckoutFolders()
 
         //informa os projetos para os quais serão criados merges sintéticos
@@ -72,8 +69,6 @@ class BugManager {
         createFolder(bugsFolder)
         deleteFolder(buggyRevisionFolder)
         createFolder(buggyRevisionFolder)
-        deleteFolder(fixedRevisionFolder)
-        createFolder(fixedRevisionFolder)
     }
 
     private void initializeProjects(){
@@ -151,7 +146,6 @@ class BugManager {
                 def fixedRevision = entry[6]
                 this.bugs += new Bug(id: id, project: project, failingTests: failingTests, modifiedClasses: modifiedClasses,
                         buggyFolder:"${buggyRevisionFolder}${File.separator}${project}_${id}",
-                        fixedFolder:"${fixedRevisionFolder}${File.separator}${project}_${id}",
                         buggyRevision: buggyRevision,
                         fixedRevision: fixedRevision)
             }
@@ -175,17 +169,6 @@ class BugManager {
         }
     }
 
-    void checkoutFixedRevision(Bug bug){
-        ProcessBuilder builder = new ProcessBuilder("defects4j", "checkout", "-p", bug.project, "-v",
-                "${bug.id}f", "-w", bug.fixedFolder)
-        builder.directory(new File(defects4jPath))
-        Process process = builder.start()
-        process.waitFor()
-        process.inputStream.eachLine { log.info it.toString() }
-        process.inputStream.close()
-        log.info "Defects4J's checked out the fixed revision: '${bug.fixedFolder}'"
-    }
-
     private void generateMutantsForBuggyRevisions(){
         mutantsManagerList = []
         def buggyFolders = new File(buggyRevisionFolder).listFiles()?.collect{it.absolutePath }
@@ -197,7 +180,7 @@ class BugManager {
                 def coveredMethods = []
 
                 for(int i=0; i<tests.size(); i++) {
-                    def test = bug.failingTests.first()
+                    def test = tests[i]
                     //executa teste com cobertura
                     bug.executeTestWithCoverage(test)
 
@@ -235,8 +218,7 @@ class BugManager {
                 String mutantPath = "${mm.mutantsFolder}${File.separator}${mutantFolder}"
                 log.info "Trying mutant '${mutantPath}'"
 
-                GitManager gm = new GitManager(bug.buggyFolder, mutantPath, bug.fixedFolder,
-                       bug.fixedRevision)
+                GitManager gm = new GitManager(bug.buggyFolder, mutantPath, bug.fixedRevision)
 
                 def result = gm.run()
                 if(!result){
@@ -256,7 +238,7 @@ class BugManager {
                 }
 
                 if(foundFailedTest) {
-                    syntheticMerge = new SyntheticMerge(bug:bug, mutantPath:mutantPath, conflictCheckoutFolder:bug.fixedFolder)
+                    syntheticMerge = new SyntheticMerge(bug:bug, mutantPath:mutantPath, conflictCheckoutFolder:bug.buggyFolder)
                     this.syntheticMerges += syntheticMerge
                     saveSyntheticMerge(syntheticMerge)
                     break

@@ -10,7 +10,6 @@ class Bug {
     List<String> failingTests
     List<String> modifiedClasses
     String buggyFolder
-    String fixedFolder
     String buggyRevision
     String fixedRevision
 
@@ -27,7 +26,7 @@ class Bug {
 
     boolean executeTest(String test){
         ProcessBuilder builder = new ProcessBuilder("defects4j", "test", "-t", test)
-        builder.directory(new File(fixedFolder))
+        builder.directory(new File(buggyFolder))
         Process process = builder.start()
         builder.inheritIO()
         def status = process.waitFor()

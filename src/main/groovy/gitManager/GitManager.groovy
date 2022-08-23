@@ -11,13 +11,10 @@ class GitManager {
     String buggyMutantFolder
     String detachedName
     String buggyMutantBranchName
-    String fixedBugFolder
 
-    GitManager(String originalBugFolder, String buggyMutantFolder, String fixedBugFolder,
-               String fixingRevisionCommit){
+    GitManager(String originalBugFolder, String buggyMutantFolder, String fixingRevisionCommit){
         this.originalBugFolder = originalBugFolder
         this.buggyMutantFolder = buggyMutantFolder
-        this.fixedBugFolder = fixedBugFolder
         this.fixingRevisionCommit = fixingRevisionCommit
         this.buggyMutantBranchName = "mutantSpg2022"
         this.mainBranch = "masterSpg2022"
@@ -95,10 +92,10 @@ class GitManager {
         def currentBranch = verifyCurrentBranch()
         log.info "current branch: ${currentBranch}"
 
-        copyMutant()
+        def destiny = copyMutant()
         log.info "Mutant branch was changed"
 
-        versioningSource()
+        versioningSource(destiny)
         log.info "Changes in mutant branch were versioned"
 
         commitMutant()
@@ -154,53 +151,39 @@ class GitManager {
         log.info "status creating mutant branch: $status"
     }
 
-    private int copyMutantVersion1(){
-        ProcessBuilder builder = new ProcessBuilder("cp", "-r", "${buggyMutantFolder}${File.separator}.",
-                "src${File.separator}main${File.separator}java")
+    private int copyMutantVersion(String destiny){
+        log.info "Mutant will be copyied from '${buggyMutantFolder}' to '${destiny}' "
+        ProcessBuilder builder = new ProcessBuilder("cp", "-r", "${buggyMutantFolder}${File.separator}.", destiny)
         builder.directory(new File(originalBugFolder))
         builder.inheritIO()
         Process process = builder.start()
         def status = process.waitFor()
         process.inputStream.eachLine { log.info it.toString() }
         process.inputStream.close()
-        log.info "status copying mutant (version 1): $status"
-        status
-    }
-
-    private int copyMutantVersion2(){
-        ProcessBuilder builder = new ProcessBuilder("cp", "-r", "${buggyMutantFolder}${File.separator}.", "source")
-        builder.directory(new File(originalBugFolder))
-        builder.inheritIO()
-        Process process = builder.start()
-        def status = process.waitFor()
-        process.inputStream.eachLine { log.info it.toString() }
-        process.inputStream.close()
-        log.info "status copying mutant (version 2): $status"
+        log.info "status copying mutant: $status"
         status
     }
 
     def copyMutant(){
-        def status = copyMutantVersion1()
-        if (status!=0){
-            copyMutantVersion2()
+        def destiny
+        def originFolder= new File(originalBugFolder).listFiles().findAll{ it.isDirectory() }.find{
+            it.absolutePath.endsWith("src") || it.absolutePath.endsWith("source")
         }
+
+        destiny = originFolder.absolutePath
+        if(destiny.endsWith("src")) {
+            def aux = new File("${buggyMutantFolder}${File.separator}src").listFiles().findAll{ it.isDirectory() }
+            def contains = aux.find{ it.absolutePath.endsWith("main") }
+            if(contains){
+                destiny = destiny + File.separator + "main" + File.separator + "java"
+            }
+        }
+        copyMutantVersion(destiny)
+        return destiny
     }
 
-    def versioningSource(){
-        ProcessBuilder builder
-
-        def source1 = "${originalBugFolder}${File.separator}source${File.separator}"
-        def source2 = "${originalBugFolder}${File.separator}src${File.separator}main${File.separator}java${File.separator}"
-        def file = new File(source1)
-
-        def source
-        if(file.exists()){
-            source = source1
-        } else {
-            source = source2
-        }
-
-        builder = new ProcessBuilder("git", "add", "${source}${File.separator}.")
+    def versioningSource(String destiny){
+        ProcessBuilder builder = new ProcessBuilder("git", "add", "${destiny}${File.separator}.")
         builder.directory(new File(originalBugFolder))
         Process process = builder.start()
         def status = process.waitFor()
