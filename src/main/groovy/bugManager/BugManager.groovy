@@ -48,8 +48,17 @@ class BugManager {
         initializeProjects()
     }
 
+    BugManager(){
+        this(-1)
+    }
+
     BugManager(String project, int limit){
         this(limit)
+        this.projects = [project]
+    }
+
+    BugManager(String project){
+        this(-1)
         this.projects = [project]
     }
 
@@ -137,7 +146,9 @@ class BugManager {
         this.bugs = []
         this.bugFiles.each{ bugFile ->
             List<String[]> entries = readCsv(bugFile)
-            entries?.subList(0, BUGS_LIMIT)?.each{ entry ->
+            List<String[]> entriesToUse = entries
+            if(BUGS_LIMIT>-1) entriesToUse = entries?.subList(0, BUGS_LIMIT)
+            entriesToUse?.each{ entry ->
                 def id = entry[0]
                 def project = entry[1]
                 def modifiedClasses = entry[7].substring(0, entry[7].size()).tokenize(';')
@@ -241,6 +252,7 @@ class BugManager {
                     syntheticMerge = new SyntheticMerge(bug:bug, mutantPath:mutantPath, conflictCheckoutFolder:bug.buggyFolder)
                     this.syntheticMerges += syntheticMerge
                     saveSyntheticMerge(syntheticMerge)
+                    removeUnusedMutants(mutantPath)
                     break
                 }
 
@@ -251,6 +263,25 @@ class BugManager {
             }
             log.info "Partial number of generated synthetic merges: ${this.syntheticMerges.size()}"
         }
+    }
+
+    private static void removeUnusedMutants(String mutantPath){
+        def index = mutantPath.lastIndexOf(File.separator)
+        String mutantId
+        String mutantsFolder
+        if(index>-1) {
+            mutantsFolder = mutantPath.substring(0, index)
+            mutantId = mutantPath.substring(index+1)
+        }
+
+        if(mutantId==null || mutantsFolder==null) return
+
+        def mutantsFoldersPath = new File(mutantsFolder).listFiles().collect{ it.absolutePath }
+        mutantsFoldersPath = mutantsFoldersPath - [mutantPath]
+        mutantsFoldersPath.each{mf ->
+            deleteFolder(mf)
+        }
+
     }
 
     private void saveSyntheticMerge(SyntheticMerge sm){

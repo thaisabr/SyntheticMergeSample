@@ -10,16 +10,16 @@ class Main {
         BugManager bugManager
         def projects = ["Chart", "Cli", "Closure", "Codec", "Collections", "Compress", "Csv", "Gson", "JacksonCore",
                         "JacksonDatabind", "JacksonXml", "Jsoup", "JxPath", "Lang", "Math", "Mockito", "Time"]
-        def project
+        String project
         if(args && (args.size()==1)) {
             project = args[0]
             if(!(project in projects)) project = null
         }
         if(project){
             log.info "Generating bugs for project '${project}'"
-            bugManager = new BugManager(project, 50)
+            bugManager = new BugManager(project)
         } else {
-            log.info "Generating bugs for 7 projects: Closure, Math, Lang, Mockito, Time, Chart"
+            log.info "Generating bugs for 17 projects"
             bugManager = new BugManager(50)
         }
         bugManager.run()
