@@ -172,9 +172,9 @@ class GitManager {
 
         destiny = originFolder.absolutePath
         if(destiny.endsWith("src")) {
-            def aux = new File("${buggyMutantFolder}${File.separator}src").listFiles().findAll{ it.isDirectory() }
-            def contains = aux.find{ it.absolutePath.endsWith("main") }
-            if(contains){
+            def aux = new File("${originalBugFolder}${File.separator}src").listFiles().find{
+                it.isDirectory() && it.absolutePath.endsWith("main")}
+            if(aux!=null){
                 destiny = destiny + File.separator + "main" + File.separator + "java"
             }
         }
