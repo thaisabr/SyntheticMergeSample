@@ -14,6 +14,7 @@ class BugManager {
     String projectsFolder
     String bugsFolder
     String buggyRevisionFolder
+    String fixedRevisionFolder
     List<String> projects
     List<String> bugFiles
     List<Bug> bugs
@@ -28,6 +29,7 @@ class BugManager {
         this.projectsFolder = "${this.defects4jPath}${File.separator}framework${File.separator}projects${File.separator}"
         this.bugsFolder = "${defects4jPath}${File.separator}bugs"
         this.buggyRevisionFolder = "${bugsFolder}${File.separator}buggy"
+        this.fixedRevisionFolder = "${bugsFolder}${File.separator}fixed"
         this.bugFiles = []
         this.bugs = []
         this.mutantsManagerList = []
@@ -41,7 +43,7 @@ class BugManager {
         log.info "bugsFolder: ${bugsFolder}"
         log.info "buggyRevisionFolder: ${buggyRevisionFolder}"
 
-        //cria a pasta "bugs/buggy" interna à pasta do defects4j
+        //cria as pastas "bugs/buggy" e "bugs/fixed" internas à pasta do defects4j
         createCheckoutFolders()
 
         //informa os projetos para os quais serão criados merges sintéticos
@@ -78,6 +80,8 @@ class BugManager {
         createFolder(bugsFolder)
         deleteFolder(buggyRevisionFolder)
         createFolder(buggyRevisionFolder)
+        deleteFolder(fixedRevisionFolder)
+        createFolder(fixedRevisionFolder)
     }
 
     private void initializeProjects(){
@@ -157,10 +161,22 @@ class BugManager {
                 def fixedRevision = entry[6]
                 this.bugs += new Bug(id: id, project: project, failingTests: failingTests, modifiedClasses: modifiedClasses,
                         buggyFolder:"${buggyRevisionFolder}${File.separator}${project}_${id}",
+                        fixedFolder:"${fixedRevisionFolder}${File.separator}${project}_${id}",
                         buggyRevision: buggyRevision,
                         fixedRevision: fixedRevision)
             }
         }
+    }
+
+    void checkoutFixedRevision(Bug bug){
+        ProcessBuilder builder = new ProcessBuilder("defects4j", "checkout", "-p", bug.project, "-v",
+                "${bug.id}f", "-w", bug.fixedFolder)
+        builder.directory(new File(defects4jPath))
+        Process process = builder.start()
+        process.waitFor()
+        process.inputStream.eachLine { log.info it.toString() }
+        process.inputStream.close()
+        log.info "Defects4J's checked out the fixed revision: '${bug.fixedFolder}'"
     }
 
     void checkoutBuggyRevision(Bug bug){
@@ -177,6 +193,12 @@ class BugManager {
     private void checkoutBuggyRevisions(){
         this.bugs.each { bug ->
             checkoutBuggyRevision(bug)
+        }
+    }
+
+    private void checkoutFixedRevisions(){
+        this.bugs.each { bug ->
+            checkoutFixedRevision(bug)
         }
     }
 
@@ -229,7 +251,7 @@ class BugManager {
                 String mutantPath = "${mm.mutantsFolder}${File.separator}${mutantFolder}"
                 log.info "Trying mutant '${mutantPath}'"
 
-                GitManager gm = new GitManager(bug.buggyFolder, mutantPath, bug.fixedRevision)
+                GitManager gm = new GitManager(bug.buggyFolder, mutantPath, bug.fixedFolder, bug.fixedRevision)
 
                 def result = gm.run()
                 if(!result){
@@ -373,6 +395,9 @@ class BugManager {
 
         //faz checkout de todos os bugs dos projetos selecionados para geração de merges sintéticos
         checkoutBuggyRevisions()
+
+        //faz checkout de todas as correções de bug
+        checkoutFixedRevisions()
 
         //gera mutantes para cada revisão bugada
         generateMutantsForBuggyRevisions()

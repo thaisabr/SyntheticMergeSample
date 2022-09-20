@@ -10,6 +10,7 @@ class Bug {
     List<String> failingTests
     List<String> modifiedClasses
     String buggyFolder
+    String fixedFolder
     String buggyRevision
     String fixedRevision
 
