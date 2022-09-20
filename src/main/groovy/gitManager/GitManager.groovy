@@ -165,17 +165,36 @@ class GitManager {
     }
 
     def copyMutant(){
-        def destiny
-        def originFolder= new File(originalBugFolder).listFiles().findAll{ it.isDirectory() }.find{
+        String destiny = ""
+        def srcFolder= new File(originalBugFolder).listFiles().findAll{ it.isDirectory() }.find{
             it.absolutePath.endsWith("src") || it.absolutePath.endsWith("source")
         }
 
-        destiny = originFolder.absolutePath
+        if(srcFolder) destiny = srcFolder.absolutePath
+        else {
+            def gsonFolder = new File(originalBugFolder).listFiles().find{ it.isDirectory() && it.absolutePath.endsWith("gson") }
+            if(gsonFolder) destiny = gsonFolder.absolutePath + File.separator + "src" + File.separator + "main" + File.separator + "java"
+            else {
+                log.info "It is not possible to copy the mutant because we cannot find de source folder."
+                return
+            }
+        }
+
         if(destiny.endsWith("src")) {
-            def aux = new File("${originalBugFolder}${File.separator}src").listFiles().find{
+            def hasMainJavaFolder = false
+            def aux1 = new File("${originalBugFolder}${File.separator}src").listFiles().find{
                 it.isDirectory() && it.absolutePath.endsWith("main")}
-            if(aux!=null){
+            if(aux1!=null){
                 destiny = destiny + File.separator + "main" + File.separator + "java"
+                hasMainJavaFolder = true
+            }
+
+            if(!hasMainJavaFolder){
+                def aux2 = new File("${originalBugFolder}${File.separator}src").listFiles().find{
+                    it.isDirectory() && it.absolutePath.endsWith("java")}
+                if(aux2!=null){
+                    destiny = destiny + File.separator + "java"
+                }
             }
         }
         copyMutantVersion(destiny)
