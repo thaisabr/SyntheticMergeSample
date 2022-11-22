@@ -25,9 +25,20 @@ class Bug {
         log.info "Status executing test with coverage: $status"
     }
 
-    boolean executeTest(String test){
-        ProcessBuilder builder = new ProcessBuilder("defects4j", "test", "-t", test)
+    def compile(){
+        ProcessBuilder builder = new ProcessBuilder("defects4j", "compile")
         builder.directory(new File(buggyFolder))
+        Process process = builder.start()
+        def status = process.waitFor()
+        process.inputStream.eachLine { log.info it.toString() }
+        process.inputStream.close()
+        log.info "Status compiling project: $status"
+    }
+
+    boolean executeTest(String test, String currentFolder){
+        compile()
+        ProcessBuilder builder = new ProcessBuilder("defects4j", "test", "-t", test)
+        builder.directory(new File(currentFolder))
         Process process = builder.start()
         builder.inheritIO()
         def status = process.waitFor()

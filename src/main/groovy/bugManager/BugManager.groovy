@@ -232,7 +232,7 @@ class BugManager {
        }
     }
 
-    private void generateSyntheticMerges(){
+    private void generateSyntheticMerges() throws Exception {
         def buggyFolders = new File(buggyRevisionFolder).listFiles()?.collect{it.absolutePath }
 
         for(int i=0; i<this.bugs.size(); i++){
@@ -261,11 +261,18 @@ class BugManager {
 
                 foundFailedTest = false
                 for(int k=0; k<bug.failingTests.size(); k++){
-                    boolean passed = bug.executeTest(bug.failingTests.get(k))
+                    boolean passed = bug.executeTest(bug.failingTests.get(k), bug.fixedFolder)
                     def resultToShow = passed ? "Passed" : "Failed"
                     log.info "Test execution after merge: ${resultToShow}"
-                    if(!passed){
+                    if(passed){
+                        result = gm.restore()
+                        if(!result){
+                            log.error "It was not possible to restore the original branch when generating synthetic merges using $mutantPath"
+                        }
+                    }
+                    else {
                         foundFailedTest = true
+                        log.info "Failing test: ${bug.failingTests.get(k)}"
                         break
                     }
                 }
@@ -276,11 +283,6 @@ class BugManager {
                     saveSyntheticMerge(syntheticMerge)
                     removeUnusedMutants(mutantPath)
                     break
-                }
-
-                result = gm.restore()
-                if(!result){
-                    log.error "It was not possible to restore the original branch when generating synthetic merges using $mutantPath"
                 }
             }
             log.info "Partial number of generated synthetic merges: ${this.syntheticMerges.size()}"
@@ -369,7 +371,7 @@ class BugManager {
         }
     }
 
-    void run(){
+    void run() throws Exception {
         //inicializa o serviço do Defects4J
         //startDefect4jService()
         //log.info "Defects4J was initialized"
@@ -383,7 +385,7 @@ class BugManager {
 
         //gera um arquivo "projeto_bugs.csv" para cada projeto a se gerar merges sintéticos, resumindo informações
         //sobre os bugs ativos
-        generateBugCsv()
+        //generateBugCsv()
 
         //organiza listagem de arquivos com sufixo "_bugs.csv" gerados na etapa anterior
         initializeBugFileList()

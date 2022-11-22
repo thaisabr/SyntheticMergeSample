@@ -24,10 +24,12 @@ class GitManager {
         this.mainBranch = "masterSpg2022"
     }
 
-    boolean run(){
+    boolean run() throws Exception {
         log.info "localpath: ${originalBugFolder}"
-        detachedName = verifyCurrentBranch()
-        log.info "detached HEAD: ${detachedName}"
+        if(detachedName==null) {
+            detachedName = verifyCurrentBranch()
+            log.info "detached HEAD: ${detachedName}"
+        }
 
         //cria masterSpg2022 branch a partir da detached head que representa o commit que introduziu o bug
         createAndCheckoutMainBranch()
@@ -38,36 +40,48 @@ class GitManager {
             return false
         }
 
-        //cria branche para o bug mutante
-        configureMutantBranch()
-
-        //cria branche para a correção
+        //cria branch para a correção
         configureFixBranch()
 
-        //volta para a branch principal, que possui o bug original
+        //volta ao branch principal (masterSpg2022)
         checkoutMainBranch()
         currentBranch = verifyCurrentBranch()
         log.info "currentBranch: ${currentBranch}"
-        if(currentBranch!=mainBranch){
-            log.error "It is not possible to checkout '${mainBranch}'"
-            return false
-        }
 
-        //Integra a branche de correção na branch principal
+        //cria branch para o bug mutante
+        configureMutantBranch()
+
+        currentBranch = verifyCurrentBranch()
+        log.info "current branch: ${currentBranch}"
+
+        //Integra a branch que corrige o bug com a branch mutante
         mergeFixBranch()
         log.info "We merged branches ${currentBranch} and ${fixBranchName}"
 
-        currentBranch = verifyCurrentBranch()
+        currentBranch = verifyCurrentBranch() //branch mutante
         log.info "current branch: ${currentBranch}"
 
-        //Integra a branch mutante com a branch que corrige o bug
-        mergeBuggyBranch()
-        log.info "We merged branches ${currentBranch} and ${buggyMutantBranchName}"
-
-        currentBranch = verifyCurrentBranch()
-        log.info "current branch: ${currentBranch}"
+        //na pasta em que foi feito checkout da versão corrigida
+        updateFixedBranchWithIntegrationResult()
 
         true
+    }
+
+    private updateFixedBranchWithIntegrationResult(){
+        def srcFolder= new File(originalBugFolder).listFiles().findAll{ it.isDirectory() }.find{
+            it.absolutePath.endsWith("src") || it.absolutePath.endsWith("source")
+        }
+        def srcFolderSufix = ""
+        def index = srcFolder.absolutePath.lastIndexOf(File.separator)
+        srcFolderSufix = srcFolder.absolutePath.substring(index)
+
+        def origin = "${originalBugFolder}${File.separator}${srcFolderSufix}"
+        def destiny = "${fixedBugFolder}${File.separator}${srcFolderSufix}"
+        def currentFolder = fixedBugFolder
+        log.info "localpath: ${fixedBugFolder}"
+        def status = copy(origin, currentFolder, destiny)
+        log.info "Status copying integration result: $status"
+        status
     }
 
     boolean restore(){
@@ -75,11 +89,29 @@ class GitManager {
         def currentBranch = verifyCurrentBranch()
         log.info "current branch: ${currentBranch}"
 
-        deleteMainBranch()
+        def status = deleteBranch(mainBranch)
+        log.info "Status deleting main branch: $status"
 
-        deleteBuggyBranch()
+        status = deleteBranch(fixBranchName)
+        log.info "Status deleting fix branch: $status"
+
+        status = deleteBranch(buggyMutantBranchName)
+        log.info "Status deleting buggy branch: $status"
+
+        restoreFixFolder()
 
         true
+    }
+
+    private boolean restoreFixFolder(){
+        ProcessBuilder builder = new ProcessBuilder("git", "restore", ".")
+        builder.directory(new File(fixedBugFolder))
+        Process process = builder.start()
+        builder.inheritIO()
+        def status = process.waitFor()
+        process.inputStream.eachLine { log.info it.toString() }
+        process.inputStream.close()
+        log.info "Status restoring fixing folder: $status"
     }
 
     private createAndCheckoutMainBranch(){
@@ -93,10 +125,15 @@ class GitManager {
 
     }
 
-    private configureMutantBranch(){
+    private configureMutantBranch() throws Exception {
         def status = createAndCheckoutBranch(buggyMutantBranchName)
         log.info "Status creating mutant branch: $status"
-        log.info "Mutant branch was created and checked out"
+        if(status != 0){
+            log.error "Error while creating mutant branch. Status ${status}."
+            throw new Exception("Error while creating mutant branch")
+        } else {
+            log.info "Mutant branch was created and checked out"
+        }
         def currentBranch = verifyCurrentBranch()
         log.info "current branch: ${currentBranch}"
 
@@ -147,8 +184,8 @@ class GitManager {
         log.info "Status checked out detached: $status"
     }
 
-    def mergeCommit(String sha){
-        def builder = new ProcessBuilder('git','merge', sha)
+    def checkoutCommit(String sha){
+        def builder = new ProcessBuilder('git','checkout', sha)
         builder.directory(new File(originalBugFolder))
         def process = builder.start()
         def status = process.waitFor()
@@ -179,13 +216,8 @@ class GitManager {
     private int copyFixVersion(String destiny){
         def origin = configureOrigin(destiny)
         log.info "Fix will be copyied from '${origin}' to '${destiny}' "
-        ProcessBuilder builder = new ProcessBuilder("cp", "-r", "${origin}${File.separator}.", destiny)
-        builder.directory(new File(originalBugFolder))
-        builder.inheritIO()
-        Process process = builder.start()
-        def status = process.waitFor()
-        process.inputStream.eachLine { log.info it.toString() }
-        process.inputStream.close()
+        def currentFolder = originalBugFolder
+        def status = copy(origin, currentFolder, destiny)
         log.info "Status copying fix: $status"
         status
     }
@@ -217,15 +249,22 @@ class GitManager {
     }
 
     private int copyMutantVersion(String destiny){
-        log.info "Mutant will be copyied from '${buggyMutantFolder}' to '${destiny}' "
-        ProcessBuilder builder = new ProcessBuilder("cp", "-r", "${buggyMutantFolder}${File.separator}.", destiny)
-        builder.directory(new File(originalBugFolder))
+        def currentFolder = originalBugFolder
+        def origin = buggyMutantFolder
+        log.info "Mutant will be copyied from '${origin}' to '${destiny}' "
+        def status = copy(origin, currentFolder, destiny)
+        log.info "Status copying mutant: $status"
+        status
+    }
+
+    private int copy(String origin, String currentFolder, String destiny){
+        ProcessBuilder builder = new ProcessBuilder("cp", "-r", "${origin}${File.separator}.", destiny)
+        builder.directory(new File(currentFolder))
         builder.inheritIO()
         Process process = builder.start()
         def status = process.waitFor()
         process.inputStream.eachLine { log.info it.toString() }
         process.inputStream.close()
-        log.info "Status copying mutant: $status"
         status
     }
 
@@ -298,7 +337,7 @@ class GitManager {
     }
 
     def mergeBranch(String branch){
-        def builder = new ProcessBuilder('git','merge', branch)
+        def builder = new ProcessBuilder('git','merge', '--no-edit', '--no-ff', branch)
         builder.directory(new File(originalBugFolder))
         def process = builder.start()
         def status = process.waitFor()
@@ -307,7 +346,7 @@ class GitManager {
         status
     }
 
-    def mergeBuggyBranch(){
+    def mergeMutantBuggyBranch(){
         def status = mergeBranch(buggyMutantBranchName)
         log.info "Status merging buggy branch: $status"
     }
@@ -325,16 +364,6 @@ class GitManager {
         process.inputStream.readLines()
         process.inputStream.close()
         status
-    }
-
-    def deleteMainBranch(){
-        def status = deleteBranch(mainBranch)
-        log.info "Status deleting main branch: $status"
-    }
-
-    def deleteBuggyBranch(){
-        def status = deleteBranch(buggyMutantBranchName)
-        log.info "Status deleting buggy branch: $status"
     }
 
 }
