@@ -17,18 +17,13 @@ class Main {
         }
         if(project){
             log.info "Generating bugs for project '${project}'"
-            bugManager = new BugManager(project, 1)
+            bugManager = new BugManager(project)
         } else {
             log.info "Generating bugs for 17 projects"
-            bugManager = new BugManager(50)
+            bugManager = new BugManager()
         }
 
-        try {
-            bugManager.run()
-        } catch(Exception exception){
-            log.info exception.message
-            exception.printStackTrace()
-        }
+        bugManager.run()
 
     }
 

@@ -37,7 +37,7 @@ class GitManager {
         log.info "currentBranch: ${currentBranch}"
         if(currentBranch!=mainBranch){
             log.error "It is not possible to create and checkout '${mainBranch}'"
-            return false
+            false
         }
 
         //cria branch para a correção
@@ -48,29 +48,42 @@ class GitManager {
         currentBranch = verifyCurrentBranch()
         log.info "currentBranch: ${currentBranch}"
 
-        //cria branch para o bug mutante
-        configureMutantBranch()
+        try {
+            //cria branch para o bug mutante
+            configureMutantBranch()
 
-        currentBranch = verifyCurrentBranch()
-        log.info "current branch: ${currentBranch}"
+            currentBranch = verifyCurrentBranch()
+            log.info "current branch: ${currentBranch}"
 
-        //Integra a branch que corrige o bug com a branch mutante
-        mergeFixBranch()
-        log.info "We merged branches ${currentBranch} and ${fixBranchName}"
+            //Integra a branch que corrige o bug com a branch mutante
+            mergeFixBranch()
+            log.info "We merged branches ${currentBranch} and ${fixBranchName}"
 
-        currentBranch = verifyCurrentBranch() //branch mutante
-        log.info "current branch: ${currentBranch}"
+            currentBranch = verifyCurrentBranch() //branch mutante
+            log.info "current branch: ${currentBranch}"
 
-        //na pasta em que foi feito checkout da versão corrigida
-        updateFixedBranchWithIntegrationResult()
+            //na pasta em que foi feito checkout da versão corrigida
+            updateFixedBranchWithIntegrationResult()
 
-        true
+        } catch(Exception exception){
+            log.info exception.message
+            exception.printStackTrace()
+            restore()
+            return false
+        }
+
+        return true
     }
 
     private updateFixedBranchWithIntegrationResult(){
         def srcFolder= new File(originalBugFolder).listFiles().findAll{ it.isDirectory() }.find{
-            it.absolutePath.endsWith("src") || it.absolutePath.endsWith("source")
+            it.absolutePath.endsWith("src") || it.absolutePath.endsWith("source") || it.absolutePath.endsWith("gson")
         }
+
+        if(srcFolder == null){ //project Gson
+            throw new Exception("It was not possible to find the source folder")
+        }
+
         def srcFolderSufix = ""
         def index = srcFolder.absolutePath.lastIndexOf(File.separator)
         srcFolderSufix = srcFolder.absolutePath.substring(index)
@@ -89,21 +102,23 @@ class GitManager {
         def currentBranch = verifyCurrentBranch()
         log.info "current branch: ${currentBranch}"
 
-        def status = deleteBranch(mainBranch)
-        log.info "Status deleting main branch: $status"
+        def status1 = deleteBranch(mainBranch)
+        log.info "Status deleting main branch: $status1"
 
-        status = deleteBranch(fixBranchName)
-        log.info "Status deleting fix branch: $status"
+        def status2 = deleteBranch(fixBranchName)
+        log.info "Status deleting fix branch: $status2"
 
-        status = deleteBranch(buggyMutantBranchName)
-        log.info "Status deleting buggy branch: $status"
+        def status3 = deleteBranch(buggyMutantBranchName)
+        log.info "Status deleting buggy branch: $status3"
 
-        restoreFixFolder()
+        def status4 = restoreFixFolder()
+        log.info "Status restoring fixing folder: $status4"
 
-        true
+        if(status1!=0 || status2!=0 || status3!=0 ||status4!=0 ) false
+        else true
     }
 
-    private boolean restoreFixFolder(){
+    private restoreFixFolder(){
         ProcessBuilder builder = new ProcessBuilder("git", "restore", ".")
         builder.directory(new File(fixedBugFolder))
         Process process = builder.start()
@@ -111,7 +126,7 @@ class GitManager {
         def status = process.waitFor()
         process.inputStream.eachLine { log.info it.toString() }
         process.inputStream.close()
-        log.info "Status restoring fixing folder: $status"
+        status
     }
 
     private createAndCheckoutMainBranch(){
@@ -346,14 +361,24 @@ class GitManager {
         status
     }
 
-    def mergeMutantBuggyBranch(){
-        def status = mergeBranch(buggyMutantBranchName)
-        log.info "Status merging buggy branch: $status"
+    def abortMerge(){
+        def builder = new ProcessBuilder('git','merge', '--abort')
+        builder.directory(new File(originalBugFolder))
+        def process = builder.start()
+        def status = process.waitFor()
+        log.info "Aborting merge"
+        process.inputStream.eachLine { log.info it.toString() }
+        process.inputStream.close()
+        status
     }
 
-    def mergeFixBranch(){
+    def mergeFixBranch() throws Exception {
         def status = mergeBranch(fixBranchName)
         log.info "Status merging fix branch: $status"
+        if(status != 0) {
+            abortMerge()
+            throw new Exception("Error while merging buggy and fix branches")
+        }
     }
 
     def deleteBranch(String branch){

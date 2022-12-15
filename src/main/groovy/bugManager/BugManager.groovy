@@ -85,10 +85,10 @@ class BugManager {
     }
 
     private void initializeProjects(){
-        //PROVISÓRIO
-        this.projects = ["Closure", "Math", "Lang", "Mockito", "Time", "Chart"
-                         //, "Cli", "Codec", "Collections", "Compress", "Csv", "Gson", "JacksonCore",
-                         //"JacksonDatabind", "JacksonXml", "Jsoup", "JxPath"
+        this.projects = ["Closure", "Math", "Lang",
+                         "Mockito", "Time", "Chart",
+                         "Cli", "Codec", "Collections", "Compress", "Csv", "Gson", "JacksonCore",
+                         "JacksonDatabind", "JacksonXml", "Jsoup", "JxPath"
         ]
     }
 
@@ -261,19 +261,19 @@ class BugManager {
 
                 foundFailedTest = false
                 for(int k=0; k<bug.failingTests.size(); k++){
-                    boolean passed = bug.executeTest(bug.failingTests.get(k), bug.fixedFolder)
-                    def resultToShow = passed ? "Passed" : "Failed"
-                    log.info "Test execution after merge: ${resultToShow}"
-                    if(passed){
-                        result = gm.restore()
-                        if(!result){
-                            log.error "It was not possible to restore the original branch when generating synthetic merges using $mutantPath"
+                    try{
+                        boolean passed = bug.executeTest(bug.failingTests.get(k), bug.fixedFolder)
+                        def resultToShow = passed ? "Passed" : "Failed"
+                        log.info "Test execution after merge: ${resultToShow}"
+                        if(!passed) {
+                            foundFailedTest = true
+                            log.info "Failing test: ${bug.failingTests.get(k)}"
+                            break
                         }
-                    }
-                    else {
-                        foundFailedTest = true
-                        log.info "Failing test: ${bug.failingTests.get(k)}"
-                        break
+                    } catch(Exception exception){
+                        log.info exception.message
+                        log.info "The execution of test '${bug.failingTests.get(k)}' in folder '${bug.fixedFolder}' was aborted. "
+                        continue
                     }
                 }
 
@@ -283,6 +283,11 @@ class BugManager {
                     saveSyntheticMerge(syntheticMerge)
                     removeUnusedMutants(mutantPath)
                     break
+                } else {
+                    result = gm.restore()
+                    if(!result){
+                        log.error "It was not possible to restore the original branch when generating synthetic merges using $mutantPath"
+                    }
                 }
             }
             log.info "Partial number of generated synthetic merges: ${this.syntheticMerges.size()}"
@@ -385,7 +390,7 @@ class BugManager {
 
         //gera um arquivo "projeto_bugs.csv" para cada projeto a se gerar merges sintéticos, resumindo informações
         //sobre os bugs ativos
-        //generateBugCsv()
+        generateBugCsv()
 
         //organiza listagem de arquivos com sufixo "_bugs.csv" gerados na etapa anterior
         initializeBugFileList()
